@@ -1,0 +1,27 @@
+# ============================================
+# Sensitive credentials - NEVER commit these
+# ============================================
+credentials.json
+service-account*.json
+*-credentials.json
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# API Keys & Secrets
+*.key
+*.pem
+secrets.json
+
+# n8n local config
+.n8n/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
