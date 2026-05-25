@@ -1,0 +1,174 @@
+{
+  "name": "CRYPTO - Binance Historical Data to Supabase",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-192, -240],
+      "id": "156cf56d-f2a4-412d-bf42-0268688a67f4",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// Ø§ÙØ®Ø·ÙØ© 1: ÙØ§Ø¦ÙØ© Ø§ÙØ¹ÙÙØ§Øª Ø§ÙÙØ±Ø§Ø¯ Ø¬ÙØ¨ Ø¨ÙØ§ÙØ§ØªÙØ§ Ø§ÙØªØ§Ø±ÙØ®ÙØ©\n// Ø£Ø¶Ù Ø£Ù Ø§Ø­Ø°Ù Ø¹ÙÙØ§Øª Ø­Ø³Ø¨ Ø§Ø­ØªÙØ§Ø¬Ù\n// ============================================================\nconst coins = [\n  \"BTCUSDT\",\n  \"ETHUSDT\",\n  \"BNBUSDT\",\n  \"SOLUSDT\",\n  \"XRPUSDT\",\n  \"ADAUSDT\",\n  \"DOGEUSDT\",\n  \"AVAXUSDT\",\n  \"LINKUSDT\",\n  \"LTCUSDT\"\n];\n\nreturn coins.map(coin => ({ json: { symbol: coin } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [0, -240],
+      "id": "7fba1396-2a37-4d63-a172-0a157960cd53",
+      "name": "Define Coins List"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [256, -240],
+      "id": "d9949872-b081-46dc-8e53-8b8b0f737fb5",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "url": "https://api.binance.com/api/v3/klines",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $json.symbol }}"
+            },
+            {
+              "name": "interval",
+              "value": "1d"
+            },
+            {
+              "name": "limit",
+              "value": "730"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [624, -240],
+      "id": "14990da6-c2e2-4353-826e-04a7def30e79",
+      "name": "Fetch Klines from Binance",
+      "notes": "Binance public endpoint - no authentication required"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// Ø§ÙØ®Ø·ÙØ© 3: ØªÙØ³ÙÙ Ø¨ÙØ§ÙØ§Øª Ø§ÙØ´ÙÙØ¹ (Klines) ÙÙÙ Ø¹ÙÙØ©\n// ============================================================\n\n// Ø¬ÙØ¨ Ø§Ø³Ù Ø§ÙØ¹ÙÙØ© ÙÙ ÙÙØ¯ Ø§ÙÙÙØ¨\nconst symbol = $('Loop Over Items').item.json.symbol;\n\n// Ø§ÙØªØ­ÙÙ ÙÙ ÙØ¬ÙØ¯ Ø¨ÙØ§ÙØ§Øª\nif (!items || items.length === 0) {\n  console.log(`No data received for ${symbol}`);\n  return [];\n}\n\nconst formattedData = [];\n\nfor (const item of items) {\n  const candle = item.json;\n\n  // Ø§ÙØªØ­ÙÙ ÙÙ ØµØ­Ø© Ø§ÙØµÙ\n  if (!Array.isArray(candle) || candle.length < 6) {\n    continue;\n  }\n\n  const openPrice  = parseFloat(candle[1]);\n  const highPrice  = parseFloat(candle[2]);\n  const lowPrice   = parseFloat(candle[3]);\n  const closePrice = parseFloat(candle[4]);\n  const volume     = parseFloat(candle[5]);\n\n  // ØªØ¬ÙØ¨ Ø§ÙÙØ³ÙØ© Ø¹ÙÙ ØµÙØ±\n  const change24h = openPrice !== 0\n    ? ((closePrice - openPrice) / openPrice) * 100\n    : 0;\n\n  formattedData.push({\n    json: {\n      symbol:     symbol,\n      time:       new Date(candle[0]).toISOString(),\n      open:       openPrice,\n      high:       highPrice,\n      low:        lowPrice,\n      price:      closePrice,\n      volume:     volume,\n      change_24h: parseFloat(change24h.toFixed(4))\n    }\n  });\n}\n\nconsole.log(`Formatted ${formattedData.length} candles for ${symbol}`);\nreturn formattedData;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [848, -240],
+      "id": "14edd969-aafa-4bae-951f-e87e729baadc",
+      "name": "Format Klines Data"
+    },
+    {
+      "parameters": {
+        "tableId": "binance_prices",
+        "dataToSend": "autoMapInputData"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1088, -240],
+      "id": "4b568763-f533-4c47-82b7-87f785a7ab94",
+      "name": "Save to Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Setup: Add your Supabase credentials in n8n before running"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Define Coins List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Define Coins List": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Fetch Klines from Binance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Klines from Binance": {
+      "main": [
+        [
+          {
+            "node": "Format Klines Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Klines Data": {
+      "main": [
+        [
+          {
+            "node": "Save to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Cairo",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "description": "Fetches 2 years of daily OHLCV data from Binance for 10 major crypto pairs and stores them in Supabase. No API key required (public endpoint).",
+    "templateCredsSetupCompleted": false
+  },
+  "tags": ["crypto", "binance", "supabase", "historical-data"]
+}
